@@ -17,7 +17,7 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: msys2/setup-msys2@v2
         with:
@@ -46,7 +46,7 @@ jobs:
       - name: Show artifacts
         run: ls -la dist && cat dist/SHA256SUMS
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: suricata-windows-x86_64
           path: |
