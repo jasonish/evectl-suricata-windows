@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Stage a built Suricata tree into a self-contained directory and produce
-# .zip and .tar.gz archives plus SHA256SUMS.
+# a .zip archive plus SHA256SUMS.
 #
 # Usage: package.sh <suricata-src-dir> <package-name> <dist-dir>
 #
@@ -132,10 +132,9 @@ smoke_path="${NPCAP_RUNTIME_DIR:+$NPCAP_RUNTIME_DIR:}/c/Windows/System32:/c/Wind
     "$pkg/suricata.exe" --build-info
 } > "$pkg/BUILD-INFO.txt"
 
-rm -f "$dist/$name.zip" "$dist/$name.tar.gz"
+rm -f "$dist/$name.zip"
 (cd "$stage" && zip -q -r -9 "$dist/$name.zip" "$name")
-(cd "$stage" && tar czf "$dist/$name.tar.gz" "$name")
-(cd "$dist" && sha256sum "$name.zip" "$name.tar.gz" > SHA256SUMS)
+(cd "$dist" && sha256sum "$name.zip" > SHA256SUMS)
 
 echo
 echo "Packaged files:"
