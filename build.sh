@@ -5,7 +5,10 @@
 # scripts/install-deps.sh installed. Output lands in dist/.
 #
 # Environment overrides:
-#   NPCAP_SDK_DIR   use an existing SDK extraction instead of downloading
+#   NPCAP_SDK_DIR     use an existing SDK extraction instead of downloading
+#   NPCAP_RUNTIME_DIR directory holding wpcap.dll/Packet.dll for running the
+#                     built binary (test only; auto-fetched if Npcap is not
+#                     installed)
 #   JOBS            parallel make jobs (default: nproc)
 #   CONFIGURE_EXTRA extra ./configure arguments
 set -euo pipefail
@@ -56,6 +59,20 @@ if [[ -z ${NPCAP_SDK_DIR:-} ]]; then
     "$ROOT/scripts/fetch-npcap-sdk.sh" "$NPCAP_SDK_DIR"
 fi
 NPCAP_SDK_DIR=$(cd "$NPCAP_SDK_DIR" && pwd)
+
+# --- Npcap runtime (test only) ---------------------------------------------
+# suricata.exe links wpcap.dll directly, so it cannot even start on a machine
+# without Npcap (e.g. the CI runner). For the post-build checks only, pull
+# wpcap.dll/Packet.dll out of the Npcap installer. They are never packaged.
+if [[ -z ${NPCAP_RUNTIME_DIR:-} ]] && [[ ! -f /c/Windows/System32/wpcap.dll ]]; then
+    NPCAP_RUNTIME_DIR="$WORK/npcap-runtime"
+    "$ROOT/scripts/fetch-npcap-runtime.sh" "$NPCAP_RUNTIME_DIR"
+fi
+if [[ -n ${NPCAP_RUNTIME_DIR:-} ]]; then
+    NPCAP_RUNTIME_DIR=$(cd "$NPCAP_RUNTIME_DIR" && pwd)
+    export NPCAP_RUNTIME_DIR
+    export PATH="$NPCAP_RUNTIME_DIR:$PATH"
+fi
 
 # --- Configure and build ----------------------------------------------------
 # Release tarballs ship vendored Rust crates, so cargo works offline.
