@@ -18,6 +18,8 @@ exe="$src/src/suricata.exe"
 [[ -f "$exe" ]] || { echo "error: $exe not found (build first)" >&2; exit 1; }
 command -v ldd >/dev/null || { echo "error: ldd is required" >&2; exit 1; }
 
+mkdir -p "$dist"
+dist=$(cd "$dist" && pwd)
 stage="$ROOT/work/stage"
 pkg="$stage/$name"
 rm -rf "$stage"
@@ -86,12 +88,19 @@ cp "$src"/rules/*.rules "$pkg/rules/"
 
 # Sanity check: the staged tree must run on its own, with only the DLLs
 # we shipped (the Windows directory is implicitly on the search path).
+# Logs go to a scratch dir so the staged tree stays clean.
+smoke_log="$ROOT/work/smoke-log"
+rm -rf "$smoke_log"
+mkdir -p "$smoke_log"
+# Suricata reads the CPU count from this Windows variable; some MSYS2
+# login shells drop it.
+export NUMBER_OF_PROCESSORS=${NUMBER_OF_PROCESSORS:-$(nproc)}
 (
     cd "$pkg"
     PATH="/c/Windows/System32:/c/Windows" ./suricata.exe -V
     PATH="/c/Windows/System32:/c/Windows" ./suricata.exe -c suricata.yaml -T \
-        -l . \
-        --set default-rule-path=./rules \
+        -l "$smoke_log" \
+        -S rules/app-layer-events.rules \
         --set classification-file=./classification.config \
         --set reference-config-file=./reference.config \
         --set threshold-file=./threshold.config
