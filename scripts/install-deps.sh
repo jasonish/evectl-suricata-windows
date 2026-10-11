@@ -8,6 +8,7 @@ pacman -S --needed --noconfirm \
     automake \
     git \
     make \
+    p7zip \
     patch \
     unzip \
     zip \

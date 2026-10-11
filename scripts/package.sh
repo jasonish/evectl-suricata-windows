@@ -79,6 +79,14 @@ for lower in "${!dlls[@]}"; do
     cp "${dlls[$lower]}" "$pkg/"
 done
 
+# Belt and braces: the Npcap runtime must never be redistributed.
+for forbidden in wpcap.dll Packet.dll; do
+    if [[ -e "$pkg/$forbidden" ]]; then
+        echo "error: $forbidden must not be packaged" >&2
+        exit 1
+    fi
+done
+
 cp "$src/suricata.yaml" "$pkg/"
 cp "$src/etc/classification.config" "$src/etc/reference.config" "$pkg/"
 cp "$src/threshold.config" "$pkg/"
@@ -95,10 +103,12 @@ mkdir -p "$smoke_log"
 # Suricata reads the CPU count from this Windows variable; some MSYS2
 # login shells drop it.
 export NUMBER_OF_PROCESSORS=${NUMBER_OF_PROCESSORS:-$(nproc)}
+# The Npcap runtime dir (if any) is test-only: see fetch-npcap-runtime.sh.
+smoke_path="${NPCAP_RUNTIME_DIR:+$NPCAP_RUNTIME_DIR:}/c/Windows/System32:/c/Windows"
 (
     cd "$pkg"
-    PATH="/c/Windows/System32:/c/Windows" ./suricata.exe -V
-    PATH="/c/Windows/System32:/c/Windows" ./suricata.exe -c suricata.yaml -T \
+    PATH="$smoke_path" ./suricata.exe -V
+    PATH="$smoke_path" ./suricata.exe -c suricata.yaml -T \
         -l "$smoke_log" \
         -S rules/app-layer-events.rules \
         --set classification-file=./classification.config \
