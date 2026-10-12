@@ -87,7 +87,16 @@ for forbidden in wpcap.dll Packet.dll; do
     fi
 done
 
-cp "$src/suricata.yaml" "$pkg/"
+# Ship the libmagic database and enable magic-file in the config. The
+# generated config already has the line commented out, using the same
+# C:\Program Files\Suricata prefix as every other path in it.
+cp /ucrt64/share/misc/magic.mgc "$pkg/"
+sed -E 's|^#(magic-file: C:.*magic\.mgc)$|\1|' "$src/suricata.yaml" > "$pkg/suricata.yaml"
+if ! grep -qE '^magic-file: C:.*magic\.mgc' "$pkg/suricata.yaml"; then
+    echo "error: failed to enable magic-file in suricata.yaml" >&2
+    exit 1
+fi
+
 cp "$src/etc/classification.config" "$src/etc/reference.config" "$pkg/"
 cp "$src/threshold.config" "$pkg/"
 cp "$src/COPYING" "$pkg/LICENSE"
@@ -113,7 +122,8 @@ smoke_path="${NPCAP_RUNTIME_DIR:+$NPCAP_RUNTIME_DIR:}/c/Windows/System32:/c/Wind
         -S rules/app-layer-events.rules \
         --set classification-file=./classification.config \
         --set reference-config-file=./reference.config \
-        --set threshold-file=./threshold.config
+        --set threshold-file=./threshold.config \
+        --set magic-file=./magic.mgc
 )
 
 {

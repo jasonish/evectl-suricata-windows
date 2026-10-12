@@ -79,6 +79,7 @@ fi
 # --disable-gccmarch-native keeps the binary portable across CPUs.
 CONFIGURE_ARGS=(
     --prefix=/usr/local
+    --enable-libmagic
     --disable-shared
     --disable-gccmarch-native
     --enable-gccprotect
@@ -96,7 +97,17 @@ echo "Configuring: ./configure ${CONFIGURE_ARGS[*]}"
 make -j"$JOBS"
 
 ./src/suricata.exe -V
-./src/suricata.exe --build-info | grep -iE 'npcap|pcap|rust|features' || true
+./src/suricata.exe --build-info | grep -iE 'npcap|pcap|libmagic|rust|features' || true
+
+# configure only warns when an optional feature is missing; make the ones we
+# rely on fatal here.
+build_info=$(./src/suricata.exe --build-info)
+for feature in "Npcap support" "Libmagic support"; do
+    if ! grep -qE "${feature}:[[:space:]]+yes" <<< "$build_info"; then
+        echo "error: suricata was built without ${feature}" >&2
+        exit 1
+    fi
+done
 
 # --- Package ----------------------------------------------------------------
 export SURICATA_URL NPCAP_SDK_VERSION

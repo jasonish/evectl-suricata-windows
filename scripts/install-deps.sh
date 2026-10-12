@@ -13,6 +13,7 @@ pacman -S --needed --noconfirm \
     unzip \
     zip \
     mingw-w64-ucrt-x86_64-cbindgen \
+    mingw-w64-ucrt-x86_64-file \
     mingw-w64-ucrt-x86_64-jansson \
     mingw-w64-ucrt-x86_64-libpcap \
     mingw-w64-ucrt-x86_64-libtool \
