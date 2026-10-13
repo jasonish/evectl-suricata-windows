@@ -1,0 +1,104 @@
+From 510048f86800ef9e94c673e4bcbce648c4793c96 Mon Sep 17 00:00:00 2001
+From: Jason Ish <jason.ish@oisf.net>
+Date: Tue, 13 Oct 2026 00:11:07 -0600
+Subject: [PATCH 2/2] windows: reload rules with service control code
+
+Windows has no SIGUSR2 and no unix socket, so rules could not be reloaded
+without restarting Suricata. When running as a service, a rule reload can now
+be requested with the user-defined control code 128, for example:
+
+    sc.exe control Suricata 128
+
+The service control handler only records the request; the main loop then
+handles it the same as SIGUSR2.
+
+Ticket: #7756
+---
+ src/suricata.c      | 12 ++++++++++++
+ src/win32-service.c | 19 +++++++++++++++++++
+ src/win32-service.h |  7 +++++++
+ 3 files changed, 38 insertions(+)
+
+diff --git a/src/suricata.c b/src/suricata.c
+index e59874d146..48880a1238 100644
+--- a/src/suricata.c
++++ b/src/suricata.c
+@@ -2967,6 +2967,18 @@ void SuricataMainLoop(void)
+ 
+         TmThreadCheckThreadState();
+ 
++#ifdef OS_WIN32
++        /* Service control requests are handled like their signal equivalents,
++         * SC_SERVICE_REQUEST_RELOAD_RULES like SIGUSR2. */
++        uint32_t requests = SCServiceTakeRequests();
++        if (requests & SC_SERVICE_REQUEST_RELOAD_RULES) {
++            SCLogNotice("Rule reload requested by service control");
++            if (DetectEngineEnabled() && sigusr2_count < 2) {
++                sigusr2_count++;
++            }
++        }
++#endif
++
+         if (sighup_count > 0) {
+             OutputNotifyFileRotation();
+             sighup_count--;
+diff --git a/src/win32-service.c b/src/win32-service.c
+index 8de55e5401..d27568837a 100644
+--- a/src/win32-service.c
++++ b/src/win32-service.c
+@@ -41,6 +41,9 @@
+ 
+ static SERVICE_STATUS_HANDLE service_status_handle = 0;
+ 
++/* Pending SC_SERVICE_REQUEST_* flags, handled by the main loop. */
++static SC_ATOMIC_DECLARE(uint32_t, service_requests);
++
+ static int service_argc = 0;
+ 
+ static char **service_argv = NULL;
+@@ -89,11 +92,27 @@ static void SCAtExitHandler(void)
+     }
+ }
+ 
++/**
++ * \brief Get and clear the pending service control requests.
++ *
++ * \retval SC_SERVICE_REQUEST_* flags
++ */
++uint32_t SCServiceTakeRequests(void)
++{
++    return SC_ATOMIC_AND(service_requests, 0);
++}
++
+ /**
+  * \brief Service handler
+  */
+ static DWORD WINAPI SCServiceCtrlHandlerEx(DWORD code, DWORD etype, LPVOID edata, LPVOID context)
+ {
++    if (code == SC_SERVICE_CONTROL_RELOAD_RULES) {
++        /* Defer logging to the main loop, after logging initialization. */
++        SC_ATOMIC_OR(service_requests, SC_SERVICE_REQUEST_RELOAD_RULES);
++        return NO_ERROR;
++    }
++
+     if (code == SERVICE_CONTROL_SHUTDOWN || code == SERVICE_CONTROL_STOP) {
+         SERVICE_STATUS status = {
+             SERVICE_WIN32,
+diff --git a/src/win32-service.h b/src/win32-service.h
+index 87d4bc634e..bb808fe85a 100644
+--- a/src/win32-service.h
++++ b/src/win32-service.h
+@@ -25,6 +25,13 @@
+ #define SURICATA_WIN32_SERVICE_H
+ 
+ #ifdef OS_WIN32
++/* User-defined service control codes, must be in the range 128-255. */
++#define SC_SERVICE_CONTROL_RELOAD_RULES 128
++
++/* Requests returned by SCServiceTakeRequests(). */
++#define SC_SERVICE_REQUEST_RELOAD_RULES BIT_U32(0)
++
++uint32_t SCServiceTakeRequests(void);
+ int SCRunningAsService(void);
+ int SCServiceInit(int argc, char **argv);
+ int SCServiceInstall(int argc, char **argv);
